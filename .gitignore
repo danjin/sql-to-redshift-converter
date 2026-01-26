@@ -1,0 +1,32 @@
+# Ignore build artifacts
+backend/lambda.zip
+backend/package/
+backend/__pycache__/
+*.pyc
+*.pyo
+
+# Ignore sensitive files
+*.pem
+sql-converter-key.pem
+
+# Ignore OS files
+.DS_Store
+*.swp
+*.swo
+
+# Ignore deployment artifacts
+sql-converter.tar.gz
+frontend/index_deploy*.html
+
+# Ignore temporary files
+/tmp/
+*.log
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# Ignore node_modules if any
+node_modules/
+SHARK-dnjin-GenAISQLConverterDemo.mov
