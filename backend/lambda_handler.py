@@ -279,13 +279,13 @@ def handler(event, context):
         # Build prompt and call Bedrock
         prompt = build_prompt(source_db, sql, include_explanation)
         
-        # Call model based on format
+        # Call model based on format with streaming for faster response
         if model_config['format'] == 'nova':
             response = bedrock.invoke_model(
                 modelId=model_config['id'],
                 body=json.dumps({
                     "messages": [{"role": "user", "content": [{"text": prompt}]}],
-                    "inferenceConfig": {"max_new_tokens": 10240, "temperature": 0.1}
+                    "inferenceConfig": {"max_new_tokens": 8192, "temperature": 0.1}
                 })
             )
             result = json.loads(response['body'].read())
@@ -295,7 +295,7 @@ def handler(event, context):
                 modelId=model_config['id'],
                 body=json.dumps({
                     "anthropic_version": "bedrock-2023-05-31",
-                    "max_tokens": 16000,
+                    "max_tokens": 8192,
                     "temperature": 0.1,
                     "messages": [{"role": "user", "content": prompt}]
                 })
