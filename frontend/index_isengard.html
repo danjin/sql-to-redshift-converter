@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL to Redshift Converter</title>
+    <!-- Version: 2026-02-01-v2 -->
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { background: #232f3e; color: white; padding: 20px; text-align: center; margin-bottom: 30px; }
+        h1 { font-size: 28px; font-weight: 600; }
+        .subtitle { color: #aaa; margin-top: 8px; }
+        .converter { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+        select { padding: 10px 15px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white; cursor: pointer; }
+        button { padding: 10px 24px; background: #ff9900; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        button:hover { background: #ec7211; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .checkbox-label input { cursor: pointer; }
+        .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { display: flex; flex-direction: column; position: relative; }
+        .panel-header { font-weight: 600; margin-bottom: 10px; color: #232f3e; font-size: 14px; display: flex; justify-content: space-between; align-items: center; min-height: 32px; }
+        .char-counter { font-weight: normal; color: #666; font-size: 12px; }
+        .upload-btn { padding: 5px 12px; font-size: 12px; background: #232f3e; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .upload-btn:hover { background: #ff9900; }
+        .copy-btn { position: absolute; top: 45px; right: 10px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; opacity: 0; transition: opacity 0.2s; font-size: 12px; z-index: 10; display: flex; align-items: center; }
+        .panel:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover { background: #f5f5f5; }
+        .copy-btn:active { background: #e5e5e5; }
+        textarea { width: 100%; height: 400px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; }
+        textarea:focus { outline: none; border-color: #ff9900; }
+        .explanation { margin-top: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #ff9900; border-radius: 4px; display: none; }
+        .explanation h3 { margin-bottom: 10px; font-size: 14px; }
+        .explanation p { line-height: 1.6; color: #555; white-space: pre-wrap; }
+        .loading { text-align: center; color: #666; margin-top: 20px; display: none; }
+        .error { background: #fee; border-left-color: #f44; color: #c33; }
+        .docs-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .docs-content { background: white; margin: 50px auto; padding: 30px; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto; }
+        .docs-content h2 { margin-bottom: 20px; }
+        .docs-content a { color: #ff9900; text-decoration: none; }
+        .docs-content a:hover { text-decoration: underline; }
+        .docs-content ul { list-style: none; padding: 0; }
+        .docs-content li { padding: 10px; border-bottom: 1px solid #eee; }
+        .close-btn { float: right; font-size: 28px; cursor: pointer; color: #999; }
+        .close-btn:hover { color: #333; }
+        input[type="file"] { display: none; }
+        @media (max-width: 768px) {
+            .panels { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>SQL to Redshift Converter</h1>
+        <div class="subtitle">Convert SQL from Teradata, Oracle, MySQL, Clickhouse, Snowflake, BigQuery to Amazon Redshift</div>
+        <div class="subtitle" style="font-size: 12px; margin-top: 5px; color: #ff9900;">⚠️ AI models use training data (not live docs). Always test output on Redshift before production use.</div>
+    </header>
+    
+    <div class="container">
+        <div class="converter">
+            <div class="controls">
+                <select id="sourceDb">
+                    <option value="Teradata">Teradata</option>
+                    <option value="Oracle">Oracle</option>
+                    <option value="MySQL">MySQL</option>
+                    <option value="Clickhouse">Clickhouse</option>
+                    <option value="Snowflake">Snowflake</option>
+                    <option value="BigQuery">BigQuery</option>
+                </select>
+                <select id="modelSelect">
+                    <option value="nova-pro">Amazon Nova Pro (Fast)</option>
+                    <option value="claude-haiku-4.5">Claude Haiku 4.5</option>
+                    <option value="claude-opus-4.5">Claude Opus 4.5 (Best)</option>
+                </select>
+                <button id="convertBtn" onclick="convert()">Convert to Redshift</button>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="explainCheck">
+                    <span>Include explanation</span>
+                </label>
+                <button onclick="refreshFeatures()" style="background: #232f3e; margin-left: auto;" title="Refresh Redshift features from documentation">🔄 Refresh Features</button>
+                <button onclick="showDocs()" style="background: #232f3e;">📚 Docs</button>
+            </div>
+            
+            <div class="panels">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Source SQL</span>
+                        <div>
+                            <input type="file" id="fileInput" accept=".sql,.txt" onchange="loadFile()">
+                            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">📁 Upload SQL</button>
+                            <span class="char-counter" id="inputCounter">0 characters</span>
+                        </div>
+                    </div>
+                    <textarea id="inputSql" placeholder="Paste your SQL here..." oninput="updateCounter('inputSql', 'inputCounter')"></textarea>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Redshift SQL</span>
+                        <span class="char-counter" id="outputCounter">0 characters</span>
+                    </div>
+                    <button class="copy-btn" onclick="copyToClipboard()" title="Copy to clipboard">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M5.5 2.5h-3v11h8v-3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                            <rect x="7.5" y="2.5" width="6" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                        </svg>
+                    </button>
+                    <textarea id="outputSql" readonly placeholder="Converted SQL will appear here..." oninput="updateCounter('outputSql', 'outputCounter')"></textarea>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading">Converting SQL...</div>
+            
+            <div class="explanation" id="explanation">
+                <h3>Conversion Explanation</h3>
+                <p id="explanationText"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="docs-modal" id="docsModal">
+        <div class="docs-content">
+            <span class="close-btn" onclick="closeDocs()">&times;</span>
+            <h2>📚 Reference Documentation</h2>
+            <p>This tool uses the following official documentation as reference for SQL conversions:</p>
+            <ul id="docsList"></ul>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://wl2hf311kg.execute-api.us-east-1.amazonaws.com';
+        let referenceDocs = {};
+        
+        // Load reference docs on page load
+        fetch(`${API_URL}/models`)
+            .then(r => r.json())
+            .then(data => {
+                referenceDocs = data.reference_docs;
+            })
+            .catch(e => console.error('Failed to load docs:', e));
+        
+        async function refreshFeatures() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Refreshing...';
+            
+            try {
+                const response = await fetch(`${API_URL}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    btn.innerHTML = '✅ Refreshed!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                    
+                    if (result.features_count) {
+                        alert(`✅ Features refreshed!\n\nFound ${result.features_count} Redshift features:\n\n${result.features.join('\n')}`);
+                    }
+                } else {
+                    throw new Error('Refresh failed');
+                }
+            } catch (error) {
+                btn.innerHTML = '❌ Failed';
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 2000);
+                alert('Failed to refresh features. Please try again.');
+            }
+        }
+        
+        function showDocs() {
+            const docsList = document.getElementById('docsList');
+            docsList.innerHTML = Object.entries(referenceDocs)
+                .map(([db, url]) => `<li><strong>${db}:</strong> <a href="${url}" target="_blank">${url}</a></li>`)
+                .join('');
+            document.getElementById('docsModal').style.display = 'block';
+        }
+        
+        function closeDocs() {
+            document.getElementById('docsModal').style.display = 'none';
+        }
+        
+        async function convert() {
+            const inputSql = document.getElementById('inputSql').value.trim();
+            const sourceDb = document.getElementById('sourceDb').value;
+            const model = document.getElementById('modelSelect').value;
+            const includeExplanation = document.getElementById('explainCheck').checked;
+            const outputSql = document.getElementById('outputSql');
+            const loading = document.getElementById('loading');
+            const explanation = document.getElementById('explanation');
+            const convertBtn = document.getElementById('convertBtn');
+            
+            if (!inputSql) {
+                alert('Please enter SQL to convert');
+                return;
+            }
+            
+            // Warn for very large SQL
+            if (inputSql.length > 10000) {
+                alert('⚠️ Your SQL is very large (' + inputSql.length + ' characters).\n\n' +
+                      'API Gateway has a 30-second timeout limit.\n\n' +
+                      'Options:\n' +
+                      '1. Split into smaller parts (CREATE TABLE + INSERT)\n' +
+                      '2. Use CLI tool for direct Lambda invocation:\n' +
+                      '   ./convert-large-sql.sh input.sql output.sql ' + sourceDb + ' ' + model + '\n\n' +
+                      'The CLI bypasses API Gateway and uses 120s timeout.');
+                return;
+            }
+            
+            outputSql.value = '';
+            explanation.style.display = 'none';
+            loading.style.display = 'block';
+            convertBtn.disabled = true;
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 28000); // 28s timeout
+                
+                const response = await fetch(`${API_URL}/convert`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source_db: sourceDb,
+                        sql: inputSql,
+                        include_explanation: includeExplanation,
+                        model: model
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                outputSql.value = result.redshift_sql;
+                
+                if (result.explanation) {
+                    document.getElementById('explanationText').textContent = 
+                        `Model: ${result.model_used}\n\n${result.explanation}`;
+                    explanation.style.display = 'block';
+                    explanation.classList.remove('error');
+                } else if (result.model_used) {
+                    document.getElementById('explanationText').textContent = `Model: ${result.model_used}`;
+                    explanation.style.display = 'block';
+                    explanation.classList.remove('error');
+                }
+                
+                // Update output counter
+                updateCounter('outputSql', 'outputCounter');
+                
+            } catch (error) {
+                outputSql.value = '';
+                explanation.style.display = 'block';
+                explanation.classList.add('error');
+                if (error.name === 'AbortError') {
+                    document.getElementById('explanationText').textContent = 
+                        'Error: Request timeout (30 second API Gateway limit).\n\n' +
+                        'Your SQL is too complex. Split it into smaller parts:\n' +
+                        '1. CREATE TABLE (convert separately)\n' +
+                        '2. INSERT SELECT (convert separately)\n' +
+                        '3. Remove comments/whitespace';
+                } else {
+                    document.getElementById('explanationText').textContent = `Error: ${error.message}`;
+                }
+            } finally {
+                loading.style.display = 'none';
+                convertBtn.disabled = false;
+            }
+        }
+        
+        // Update character counter
+        function updateCounter(textareaId, counterId) {
+            const textarea = document.getElementById(textareaId);
+            const counter = document.getElementById(counterId);
+            const count = textarea.value.length;
+            counter.textContent = `${count.toLocaleString()} characters`;
+        }
+        
+        // Load SQL file
+        function loadFile() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('inputSql').value = e.target.result;
+                updateCounter('inputSql', 'inputCounter');
+            };
+            reader.readAsText(file);
+        }
+        
+        // Allow Ctrl+Enter to convert
+        document.getElementById('inputSql').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                convert();
+            }
+        });
+        
+        // Copy to clipboard function
+        function copyToClipboard() {
+            const outputSql = document.getElementById('outputSql');
+            if (!outputSql.value) {
+                return;
+            }
+            
+            outputSql.select();
+            document.execCommand('copy');
+            
+            // Show feedback
+            const btn = event.target.closest('.copy-btn');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 8l3 3 7-7" stroke="#28a745" stroke-width="2" fill="none"/>
+            </svg>`;
+            btn.style.color = '#28a745';
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.color = '';
+            }, 2000);
+        }
+        
+        // Close modal on outside click
+        window.onclick = (e) => {
+            if (e.target.id === 'docsModal') {
+                closeDocs();
+            }
+        };
+    </script>
+</body>
+</html>

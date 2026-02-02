@@ -72,11 +72,9 @@ def fetch_doc_snippet(url, max_length=500):
         return None
 
 def fetch_redshift_features():
-    """Fetch latest Redshift features from documentation"""
-    features = []
-    
-    # Fetch cluster versions page for comprehensive feature list
+    """Fetch latest Redshift features using AI detection"""
     try:
+        # Fetch documentation page
         req = urllib.request.Request(
             "https://docs.aws.amazon.com/redshift/latest/mgmt/cluster-versions.html",
             headers={'User-Agent': 'Mozilla/5.0'}
@@ -84,37 +82,48 @@ def fetch_redshift_features():
         with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8')
             text = re.sub(r'<[^>]+>', ' ', html)
-            text = re.sub(r'\s+', ' ', text).strip()
+            text = re.sub(r'\s+', ' ', text).strip()[:100000]  # Limit to 100K chars
             
-            # Check for features in the documentation
-            if "QUALIFY" in text:
-                features.append("QUALIFY clause is SUPPORTED (filters window function results)")
-            if "MERGE" in text:
-                features.append("MERGE statement is SUPPORTED (upsert operations)")
-            if "SUPER" in text:
-                features.append("SUPER data type is SUPPORTED (semi-structured data)")
-            if "UNNEST" in text or "unnest" in text.lower():
-                features.append("UNNEST is SUPPORTED (converts arrays to rows)")
-            if "TRY_CAST" in text:
-                features.append("TRY_CAST is SUPPORTED (safe type conversion)")
-            if "GROUP BY ALL" in text:
-                features.append("GROUP BY ALL is SUPPORTED")
-            if "PIVOT" in text:
-                features.append("PIVOT operator is SUPPORTED")
+            # Use AI to extract features
+            prompt = f"""Extract all Amazon Redshift SQL features, functions, and capabilities mentioned in this documentation.
+
+Documentation text:
+{text}
+
+Return ONLY a JSON array of feature descriptions. Each item should be a concise statement like:
+"FEATURE_NAME is SUPPORTED (brief description)"
+
+Focus on SQL syntax, functions, data types, and query capabilities.
+Return 15-25 most important features.
+
+Format: ["feature 1", "feature 2", ...]"""
+
+            response = bedrock.invoke_model(
+                modelId='amazon.nova-pro-v1:0',
+                body=json.dumps({
+                    "messages": [{"role": "user", "content": [{"text": prompt}]}],
+                    "inferenceConfig": {"temperature": 0.1, "maxTokens": 2000}
+                })
+            )
+            
+            result = json.loads(response['body'].read())
+            ai_response = result['output']['message']['content'][0]['text'].strip()
+            
+            # Parse JSON array from response
+            features = json.loads(ai_response)
+            return features if isinstance(features, list) else []
+            
     except Exception as e:
-        print(f"Error fetching features: {e}")
-    
-    # Fallback: Check specific feature pages if main page failed
-    if not features:
-        for feature_name, url in REDSHIFT_FEATURE_PAGES.items():
-            doc = fetch_doc_snippet(url, 300)
-            if doc:
-                if feature_name == "qualify" and "QUALIFY" in doc:
-                    features.append("QUALIFY clause is SUPPORTED")
-                elif feature_name == "merge" and "MERGE" in doc:
-                    features.append("MERGE statement is SUPPORTED")
-    
-    return features if features else ["Redshift features detected"]
+        print(f"AI feature detection error: {e}")
+        # Fallback to basic detection
+        return [
+            "QUALIFY clause is SUPPORTED (filters window function results)",
+            "MERGE statement is SUPPORTED (upsert operations)",
+            "SUPER data type is SUPPORTED (semi-structured data)",
+            "UNNEST is SUPPORTED (converts arrays to rows)",
+            "TRY_CAST is SUPPORTED (safe type conversion)",
+            "GROUP BY ALL is SUPPORTED"
+        ]
 
 def get_redshift_features():
     """Get Redshift features with DynamoDB caching"""
