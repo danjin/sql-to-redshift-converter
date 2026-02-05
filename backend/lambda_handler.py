@@ -82,7 +82,7 @@ def fetch_redshift_features():
         with urllib.request.urlopen(req, timeout=10) as response:
             html = response.read().decode('utf-8')
             text = re.sub(r'<[^>]+>', ' ', html)
-            text = re.sub(r'\s+', ' ', text).strip()[:100000]  # Limit to 100K chars
+            text = re.sub(r'\s+', ' ', text).strip()[:50000]  # Limit to 50K chars
             
             # Use AI to extract features
             prompt = f"""Extract all Amazon Redshift SQL features, functions, and capabilities mentioned in this documentation.
@@ -177,6 +177,7 @@ Requirements:
 3. Preserve original logic exactly
 4. Output valid, executable Redshift SQL
 5. Use latest Redshift features when available (see above)
+6. IMPORTANT: If the SQL contains comments with instructions (e.g., "do not use X", "prefer Y"), follow those instructions strictly
 
 """
     if include_explanation:
